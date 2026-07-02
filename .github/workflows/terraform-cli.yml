@@ -1,0 +1,119 @@
+name: Terraform CI
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Select Environment"
+        required: true
+        default: dev
+        type: choice
+        options:
+          - dev
+          - qa
+          - prod
+
+jobs:
+
+  terraform-plan:
+
+    name: Terraform Plan
+
+    runs-on:
+      - self-hosted
+      - macOS
+      - ARM64
+
+    defaults:
+      run:
+        working-directory: terraform
+
+    env:
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+
+    steps:
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Version
+        run: terraform version
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Format
+        run: terraform fmt -check -recursive
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Plan
+        run: |
+          terraform plan \
+          -out=tfplan \
+          -var-file=environments/${{ inputs.environment }}.tfvars
+
+      - name: Create Plan Report
+        run: terraform show tfplan > plan.txt
+
+      - name: Upload Binary Plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-plan-${{ inputs.environment }}
+          path: terraform/tfplan
+
+      - name: Upload Plan Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-plan-report-${{ inputs.environment }}
+          path: terraform/plan.txt
+
+  terraform-apply:
+
+    name: Terraform Apply
+
+    needs: terraform-plan
+
+    runs-on:
+      - self-hosted
+      - macOS
+      - ARM64
+
+    environment: ${{ inputs.environment }}
+
+    defaults:
+      run:
+        working-directory: terraform
+
+    env:
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+
+    steps:
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Download Binary Plan
+        uses: actions/download-artifact@v4
+        with:
+          name: terraform-plan-${{ inputs.environment }}
+          path: terraform
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve tfplan
