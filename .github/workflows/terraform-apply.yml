@@ -4,8 +4,9 @@ on:
   workflow_dispatch:
 
 jobs:
-
   terraform-apply:
+
+    name: Terraform Apply
 
     runs-on:
       - self-hosted
@@ -26,10 +27,23 @@ jobs:
 
     steps:
 
-      - uses: actions/checkout@v4
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-      - uses: hashicorp/setup-terraform@v3
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
 
-      - run: terraform init
+      - name: Terraform Version
+        run: terraform version
 
-      - run: terraform apply -auto-approve -var-file=environments/dev.tfvars
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Format Check
+        run: terraform fmt -check -recursive
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve -var-file=environments/dev.tfvars
