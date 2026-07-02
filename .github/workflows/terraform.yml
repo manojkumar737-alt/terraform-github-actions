@@ -1,22 +1,29 @@
-name: Terraform CI
+name: Terraform Apply
 
 on:
-  pull_request:
-    branches:
-      - main
-
-  push:
-    branches:
-      - main
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Select Environment"
+        required: true
+        type: choice
+        default: dev
+        options:
+          - dev
+          - qa
+          - prod
 
 jobs:
+  terraform-apply:
 
-  terraform-plan:
+    name: Terraform Apply (${{ inputs.environment }})
 
     runs-on:
       - self-hosted
       - macOS
       - ARM64
+
+    environment: ${{ inputs.environment }}
 
     defaults:
       run:
@@ -36,14 +43,20 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
+      - name: Display Terraform Version
+        run: terraform version
+
       - name: Terraform Init
         run: terraform init
 
-      - name: Terraform Format
+      - name: Terraform Format Check
         run: terraform fmt -check -recursive
 
       - name: Terraform Validate
         run: terraform validate
 
       - name: Terraform Plan
-        run: terraform plan -var-file=environments/dev.tfvars
+        run: terraform plan -var-file=environments/${{ inputs.environment }}.tfvars
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve -var-file=environments/${{ inputs.environment }}.tfvars
